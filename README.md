@@ -81,6 +81,10 @@ cd contracts && clarinet console
 5. Wait for the milestone goal to be met.
 6. Withdraw funds (if successful) or request a refund.
 
+
+## **Demo Video**
+https://www.youtube.com/watch?v=1X7qNoyYtn0
+
 ## **Documentation**
 
 For technical architecture and implementation details, see **ABOUT.md**.
