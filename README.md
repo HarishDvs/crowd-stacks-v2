@@ -101,8 +101,8 @@ CROWD-STACKS/
 
 ## **Snapshots**
 
-### Home Page
-![Home](assets/1.jpg)
+### Clarinet Console
+![Console](assets/1.jpg)
 
 ### Create Campaign
 ![Create Campaign](assets/2.jpg)
