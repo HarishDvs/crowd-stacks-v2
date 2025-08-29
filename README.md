@@ -72,31 +72,50 @@ cd contracts && clarinet console
 - `/lib/` : Blockchain helpers and configuration.  
 - `/public/` : Static assets.  
 
-### File Tree
+File Tree
+
 CROWD-STACKS/
 ├── app/
-│   ├── admin/
-│   │   └── page.tsx
-│   ├── create/
-│   │   └── page.tsx
-│   ├── globals.css
-│   ├── layout.tsx
-│   └── page.tsx
+│ ├── admin/
+│ │ └── page.tsx
+│ ├── create/
+│ │ └── page.tsx
+│ ├── globals.css
+│ ├── layout.tsx
+│ └── page.tsx
 │
 ├── contracts/
-│   ├── deployments/
-│   │   └── default.testnet-plan.yaml
-│   ├── settings/
-│   │   ├── Devnet.toml
-│   │   └── Testnet.toml
-│   ├── tests/
-│   │   └── crowdfunding_test.ts
-│   ├── Clarinet.toml
-│   ├── crowdfunding.clar
-│   └── history.txt
+│ ├── deployments/
+│ │ └── default.testnet-plan.yaml
+│ ├── settings/
+│ │ ├── Devnet.toml
+│ │ └── Testnet.toml
+│ ├── tests/
+│ │ └── crowdfunding_test.ts
+│ ├── Clarinet.toml
+│ ├── crowdfunding.clar
+│ └── history.txt
 │
 ├── lib/
-│   └── stacks.ts
+│ └── stacks.ts
+
+## **Snapshots**
+
+### Home Page
+![Home](assets/1.jpg)
+
+### Create Campaign
+![Create Campaign](assets/2.jpg)
+
+### Contribute Page
+![Contribute](assets/3.jpg)
+
+### Admin Panel
+![Admin](assets/4.jpg)
+
+### Contract Deployment
+![Deployment](assets/5.jpg)
+
 
 
 ## **Demo Workflow**
