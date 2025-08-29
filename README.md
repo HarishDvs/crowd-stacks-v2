@@ -64,16 +64,16 @@ cd contracts && clarinet console
 (contract-call? .crowdfunding contribute u5000000)
 ```
 
-## **Project Structure**
+## Project Structure
 
-* `/contracts/`: Clarity smart contracts and tests.
-* `/app/`: The Next.js frontend application.
-* `/components/`: Reusable UI components.
-* `/lib/`: Blockchain helpers and configuration.
-* `/public/`: Static assets.
-**File Tree**
-* CROWD-STACKS/
-│
+- `/contracts/` : Clarity smart contracts and tests.  
+- `/app/` : The Next.js frontend application.  
+- `/components/` : Reusable UI components.  
+- `/lib/` : Blockchain helpers and configuration.  
+- `/public/` : Static assets.  
+
+### File Tree
+CROWD-STACKS/
 ├── app/
 │   ├── admin/
 │   │   └── page.tsx
