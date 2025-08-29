@@ -71,6 +71,33 @@ cd contracts && clarinet console
 * `/components/`: Reusable UI components.
 * `/lib/`: Blockchain helpers and configuration.
 * `/public/`: Static assets.
+**File Tree**
+* CROWD-STACKS/
+│
+├── app/
+│   ├── admin/
+│   │   └── page.tsx
+│   ├── create/
+│   │   └── page.tsx
+│   ├── globals.css
+│   ├── layout.tsx
+│   └── page.tsx
+│
+├── contracts/
+│   ├── deployments/
+│   │   └── default.testnet-plan.yaml
+│   ├── settings/
+│   │   ├── Devnet.toml
+│   │   └── Testnet.toml
+│   ├── tests/
+│   │   └── crowdfunding_test.ts
+│   ├── Clarinet.toml
+│   ├── crowdfunding.clar
+│   └── history.txt
+│
+├── lib/
+│   └── stacks.ts
+
 
 ## **Demo Workflow**
 
