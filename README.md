@@ -2,7 +2,7 @@
 
 CrowdStacks was created to solve a major problem in indie game crowdfunding: a lack of trust. Many campaigns fail to deliver a finished game, leaving backers with nothing to show for their support. Our platform solves this by ensuring accountability through the use of smart contracts.
 
-**How it Works:** Funds are held in escrow on the Stacks blockchain and are only released to developers when they hit pre-defined milestones.
+**How it Works:** Funds are held in escrow on the Stacks blockchain and are only released to developers when they hit end goals or pre-defined milestones.
 
 **For Backers:** This model gives you more security. Your contribution is protected and won't be used until a developer shows concrete progress.
 
