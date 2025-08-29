@@ -80,17 +80,17 @@ cd contracts && clarinet console
 ### Clarinet Console
 ![Console](assets/1.jpg)
 
+### Home/Contribute Page
+![Home/Contribute Page](assets/2.jpg)
+
+### Admin Panel 1
+![Admin Panel 1](assets/3.jpg)
+
+### Admin Panel 2
+![Admin Panel 2](assets/4.jpg)
+
 ### Create Campaign
-![Create Campaign](assets/2.jpg)
-
-### Contribute Page
-![Contribute](assets/3.jpg)
-
-### Admin Panel
-![Admin](assets/4.jpg)
-
-### Contract Deployment
-![Deployment](assets/5.jpg)
+![Create Campaign](assets/5.jpg)
 
 
 
