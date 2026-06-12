@@ -31,7 +31,7 @@
 ## P2 — Performance & Reliability
 
 - [x] **P2-1** [Harish] Replace unbounded `Promise.all()` campaign fetching with batched fetching (10 at a time) and exponential backoff via `lib/fetch-utils.ts` (`mapInBatches`, `withBackoff`); applied to both fan-outs on home and the campaign loop on admin. (PR #5)
-- [ ] **P2-2** [Harish] Introduce a shared campaign-state hook (SWR or React Query) so home and admin pages share one cache instead of independently polling — fixes cross-page data divergence. (Best after the P1 chain lands.)
+- [x] **P2-2** [Harish] Shared campaign-state hook via SWR (`lib/use-campaign-data.ts`, cache key `campaign-data`): home and admin now read one cache with a single 30s refresh instead of independently polling — fixes cross-page data divergence. (PR #6)
 - [ ] **P2-3** [Tejash] Split global stats refresh onto a slower interval (60-120s) than campaign refresh (30s) in `app/page.tsx` and `app/admin/page.tsx`.
 - [ ] **P2-4** [Tejash] Add a React error boundary wrapping routes in `app/layout.tsx` with a fallback UI instead of a white screen.
 - [ ] **P2-5** [Tejash] Replace `alert()` transaction notifications (`app/page.tsx`, `app/create/page.tsx`, `app/admin/page.tsx`) with toast notifications plus transaction-status tracking (admin already has `waitForTransaction` — reuse it).
@@ -40,7 +40,7 @@
 
 - [x] **P3-1** [Harish] Add unit tests for Clarity parsing helpers — vitest added (`npm test`), 6 tests in `lib/clarity-parsers.test.ts` covering unwrapping, microSTX conversion, fallback titles, and none-response defaults. (PR #5)
 - [ ] **P3-2** [Tejash] Add tests for wallet connect/disconnect flow and session persistence.
-- [ ] **P3-3** [Harish] Add contract integration tests for `create-campaign`, `contribute`, and `close-campaign` calls (`openContractCall` / `callReadOnlyFunction`).
+- [x] **P3-3** [Harish] Contract integration tests (`lib/contract-integration.test.ts`, 8 tests): create-campaign arg shapes, contribute microSTX conversion, withdraw-funds/finalize-failure close paths, and the shared-hook read flow with mocked chain responses. (PR #6)
 - [ ] **P3-4** [Tejash] Add loading skeleton states for campaign cards instead of plain "Loading blockchain data..." text.
 - [ ] **P3-5** [Tejash] Add offline/API-unavailable detection: network status indicator and disabled contribute/create buttons when offline.
 - [ ] **P3-6** [Tejash] Plan campaign archival/cleanup strategy for `contracts/crowdfunding.clar` maps (no size limits or archival today) — design note before any contract change.
