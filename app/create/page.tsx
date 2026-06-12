@@ -109,12 +109,13 @@ export default function CreatePage() {
       const info = await response.json()
       const currentBlockHeight = info.stacks_tip_height
 
-      // Convert deadline to block height (approximate)
+      // Convert deadline to block height (~10 min per Stacks block)
       let deadlineBlock = 999999999 // Default very high block if no deadline
       if (formData.deadline) {
         const deadlineDate = new Date(formData.deadline)
         const now = new Date()
-        deadlineBlock = Math.floor(Date.now() / 1000)
+        const blocksUntilDeadline = Math.ceil((deadlineDate.getTime() - now.getTime()) / (10 * 60 * 1000))
+        deadlineBlock = currentBlockHeight + Math.max(1, blocksUntilDeadline)
       }
 
       // Call the create-campaign contract function
