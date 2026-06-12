@@ -24,14 +24,9 @@ import {
   AnchorMode
 } from '@stacks/transactions'
 import { PostConditionMode, FungibleConditionCode, makeContractSTXPostCondition } from '@stacks/transactions'
-import { StacksTestnet } from '@stacks/network'
 import { UserSession, AppConfig, showConnect, openContractCall } from '@stacks/connect'
 import { type Campaign, parseCampaign } from '@/lib/clarity-parsers'
-
-// Contract configuration
-const CONTRACT_ADDRESS = 'ST1RVN5QPTET1RV9BJQX35JQWJFYG8YNHQEY5QN24' // Replace with your deployed address
-const CONTRACT_NAME = 'crowdfunding'
-const network = new StacksTestnet()
+import { CONTRACT_ADDRESS, CONTRACT_NAME, network } from '@/lib/stacks'
 
 // Wallet configuration
 const appConfig = new AppConfig(['store_write', 'publish_data'])
