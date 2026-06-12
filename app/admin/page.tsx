@@ -27,6 +27,7 @@ import { PostConditionMode, FungibleConditionCode, makeContractSTXPostCondition 
 import { showConnect, openContractCall } from '@stacks/connect'
 import { type Campaign, parseCampaign } from '@/lib/clarity-parsers'
 import { CONTRACT_ADDRESS, CONTRACT_NAME, network, userSession } from '@/lib/stacks'
+import { mapInBatches } from '@/lib/fetch-utils'
 
 // TypeScript interfaces
 interface GlobalStats {
@@ -166,24 +167,20 @@ export default function AdminPage() {
         totalCampaigns: Number(cvToJSON(campaignCount).value)
       })
 
-      // Fetch all campaigns
+      // Fetch all campaigns in batches to respect Hiro API rate limits
       const count = Number(cvToJSON(campaignCount).value)
-      const campaignPromises = []
+      const campaignIds = Array.from({ length: count }, (_, i) => i)
 
-      for (let i = 0; i < count; i++) {
-        campaignPromises.push(
-          callReadOnlyFunction({
-            contractAddress: CONTRACT_ADDRESS,
-            contractName: CONTRACT_NAME,
-            functionName: 'get-campaign',
-            functionArgs: [uintCV(i)],
-            network,
-            senderAddress: CONTRACT_ADDRESS,
-          })
-        )
-      }
-
-      const campaignResults = await Promise.all(campaignPromises)
+      const campaignResults = await mapInBatches(campaignIds, 10, (i) =>
+        callReadOnlyFunction({
+          contractAddress: CONTRACT_ADDRESS,
+          contractName: CONTRACT_NAME,
+          functionName: 'get-campaign',
+          functionArgs: [uintCV(i)],
+          network,
+          senderAddress: CONTRACT_ADDRESS,
+        })
+      )
       const fetchedCampaigns: Campaign[] = campaignResults
         .map((result, index) => {
           try {

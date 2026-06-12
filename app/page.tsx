@@ -19,6 +19,7 @@ import { showConnect, openContractCall } from "@stacks/connect"
 import { Poppins } from "next/font/google"
 import { type Campaign, parseCampaign } from "@/lib/clarity-parsers"
 import { CONTRACT_ADDRESS, CONTRACT_NAME, network, userSession } from "@/lib/stacks"
+import { mapInBatches } from "@/lib/fetch-utils"
 
 interface GlobalStats {
   totalRaised: number
@@ -232,24 +233,20 @@ export default function HomePage() {
         activeCampaigns: Number(cvToJSON(activeCampaigns).value), // Updated by admin/page.tsx close-campaign
       })
 
-      // Fetch all campaigns - WILL INCLUDE NEW ONES FROM create/page.tsx
+      // Fetch all campaigns in batches to respect Hiro API rate limits
       const count = Number(cvToJSON(campaignCount).value)
-      const campaignPromises = []
+      const campaignIds = Array.from({ length: count }, (_, i) => i)
 
-      for (let i = 0; i < count; i++) {
-        campaignPromises.push(
-          callReadOnlyFunction({
-            contractAddress: CONTRACT_ADDRESS,
-            contractName: CONTRACT_NAME,
-            functionName: "get-campaign",
-            functionArgs: [uintCV(i)],
-            network,
-            senderAddress: CONTRACT_ADDRESS,
-          }),
-        )
-      }
-
-      const campaignResults = await Promise.all(campaignPromises)
+      const campaignResults = await mapInBatches(campaignIds, 10, (i) =>
+        callReadOnlyFunction({
+          contractAddress: CONTRACT_ADDRESS,
+          contractName: CONTRACT_NAME,
+          functionName: "get-campaign",
+          functionArgs: [uintCV(i)],
+          network,
+          senderAddress: CONTRACT_ADDRESS,
+        }),
+      )
       const fetchedCampaigns: Campaign[] = campaignResults
         .map((result, index) => {
           try {
@@ -262,8 +259,8 @@ export default function HomePage() {
         })
         .filter((campaign): campaign is Campaign => campaign !== null)
 
-      // Enrich with blocks-remaining for countdowns
-      const statusPromises = fetchedCampaigns.map((c) =>
+      // Enrich with blocks-remaining for countdowns (batched like above)
+      const statusResults = await mapInBatches(fetchedCampaigns, 10, (c) =>
         callReadOnlyFunction({
           contractAddress: CONTRACT_ADDRESS,
           contractName: CONTRACT_NAME,
@@ -273,7 +270,6 @@ export default function HomePage() {
           senderAddress: CONTRACT_ADDRESS,
         })
       )
-      const statusResults = await Promise.all(statusPromises)
       const withStatus = fetchedCampaigns.map((c, i) => {
         try {
           const json: any = cvToJSON(statusResults[i])
