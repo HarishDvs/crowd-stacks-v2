@@ -67,8 +67,8 @@ const parseCampaign = (json: any, id: number): Campaign => {
   const d = json?.value?.value ?? {}
   return {
     id,
-    title: jStr(d.title) || 'Campaign ${id}',
-    description: jStr(d.description) || 'Campaign ${id}',
+    title: jStr(d.title) || `Campaign ${id}`,
+    description: jStr(d.description) || `Campaign ${id}`,
     goal: jNum(d.goal) / 1_000_000,
     total: jNum(d.total) / 1_000_000,
     deadline: jNum(d.deadline),
