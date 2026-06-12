@@ -18,24 +18,13 @@ import {
   LogIn
 } from 'lucide-react'
 import {
-  callReadOnlyFunction,
-  cvToJSON,
   uintCV,
   AnchorMode
 } from '@stacks/transactions'
 import { PostConditionMode, FungibleConditionCode, makeContractSTXPostCondition } from '@stacks/transactions'
 import { showConnect, openContractCall } from '@stacks/connect'
-import { type Campaign, parseCampaign } from '@/lib/clarity-parsers'
 import { CONTRACT_ADDRESS, CONTRACT_NAME, network, userSession } from '@/lib/stacks'
-import { mapInBatches } from '@/lib/fetch-utils'
-
-// TypeScript interfaces
-interface GlobalStats {
-  totalRaised: number
-  totalContributors: number
-  activeCampaigns: number
-  totalCampaigns: number
-}
+import { useCampaignData } from '@/lib/use-campaign-data'
 
 // Present a readable deadline from either unix-seconds or block height
 const formatDeadlineDisplay = (deadline: number, currentBlockHeight: number | null): string => {
@@ -63,14 +52,8 @@ const formatDeadlineDisplay = (deadline: number, currentBlockHeight: number | nu
 
 export default function AdminPage() {
   const [user, setUser] = useState<any>(null)
-  const [campaigns, setCampaigns] = useState<Campaign[]>([])
-  const [globalStats, setGlobalStats] = useState<GlobalStats>({
-    totalRaised: 0,
-    totalContributors: 0,
-    activeCampaigns: 0,
-    totalCampaigns: 0
-  })
-  const [loading, setLoading] = useState(true)
+  // Campaigns and stats come from the shared SWR cache (same key as home page)
+  const { campaigns, globalStats, loading, refresh } = useCampaignData()
   const [closingCampaign, setClosingCampaign] = useState<number | null>(null)
   const [currentBlockHeight, setCurrentBlockHeight] = useState<number | null>(null)
 
@@ -79,13 +62,6 @@ export default function AdminPage() {
     if (userSession.isUserSignedIn()) {
       setUser(userSession.loadUserData())
     }
-    fetchAllData()
-  }, [])
-
-  // Auto-refresh data every 30 seconds
-  useEffect(() => {
-    const interval = setInterval(fetchAllData, 30000)
-    return () => clearInterval(interval)
   }, [])
 
   // Fetch current chain height (client-side) to estimate block-based deadlines
@@ -116,90 +92,6 @@ export default function AdminPage() {
         window.location.reload()
       },
     })
-  }
-
-  // Fetch all blockchain data
-  const fetchAllData = async () => {
-    try {
-      setLoading(true)
-
-      // Get global stats
-      const [totalSTX, totalContributors, activeCampaigns, campaignCount] = await Promise.all([
-        callReadOnlyFunction({
-          contractAddress: CONTRACT_ADDRESS,
-          contractName: CONTRACT_NAME,
-          functionName: "get-total-stx",
-          functionArgs: [],
-          network,
-          senderAddress: CONTRACT_ADDRESS,
-        }),
-        callReadOnlyFunction({
-          contractAddress: CONTRACT_ADDRESS,
-          contractName: CONTRACT_NAME,
-          functionName: "get-total-contributors",
-          functionArgs: [],
-          network,
-          senderAddress: CONTRACT_ADDRESS,
-        }),
-        callReadOnlyFunction({
-          contractAddress: CONTRACT_ADDRESS,
-          contractName: CONTRACT_NAME,
-          functionName: "get-active-campaigns",
-          functionArgs: [],
-          network,
-          senderAddress: CONTRACT_ADDRESS,
-        }),
-        callReadOnlyFunction({
-          contractAddress: CONTRACT_ADDRESS,
-          contractName: CONTRACT_NAME,
-          functionName: "get-campaign-count",
-          functionArgs: [],
-          network,
-          senderAddress: CONTRACT_ADDRESS,
-        }),
-      ])
-
-      // Update global stats
-      setGlobalStats({
-        totalRaised: Number(cvToJSON(totalSTX).value) / 1_000_000,
-        totalContributors: Number(cvToJSON(totalContributors).value),
-        activeCampaigns: Number(cvToJSON(activeCampaigns).value),
-        totalCampaigns: Number(cvToJSON(campaignCount).value)
-      })
-
-      // Fetch all campaigns in batches to respect Hiro API rate limits
-      const count = Number(cvToJSON(campaignCount).value)
-      const campaignIds = Array.from({ length: count }, (_, i) => i)
-
-      const campaignResults = await mapInBatches(campaignIds, 10, (i) =>
-        callReadOnlyFunction({
-          contractAddress: CONTRACT_ADDRESS,
-          contractName: CONTRACT_NAME,
-          functionName: 'get-campaign',
-          functionArgs: [uintCV(i)],
-          network,
-          senderAddress: CONTRACT_ADDRESS,
-        })
-      )
-      const fetchedCampaigns: Campaign[] = campaignResults
-        .map((result, index) => {
-          try {
-            const parsed = parseCampaign(cvToJSON(result), index)
-            return parsed
-          } catch (error) {
-            console.warn(`Failed to parse campaign ${index}:`, error)
-            return null
-          }
-        })
-        .filter((campaign): campaign is Campaign => campaign !== null)
-
-      setCampaigns(fetchedCampaigns)
-
-    } catch (error) {
-      console.error('Error fetching blockchain data:', error)
-    } finally {
-      setLoading(false)
-    }
   }
 
   // Add this new function inside your AdminPage component
@@ -291,8 +183,8 @@ export default function AdminPage() {
             // This will wait for the transaction to be confirmed
             await waitForTransaction(data.txId);
 
-            // Now, refresh the data to show the updated list
-            await fetchAllData();
+            // Now, refresh the shared cache to show the updated list
+            await refresh();
             alert(`Campaign finalized successfully!`);
           } catch (error) {
             console.error('Transaction confirmation failed:', error);
