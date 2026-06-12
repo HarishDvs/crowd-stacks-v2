@@ -24,60 +24,17 @@ import {
   AnchorMode
 } from '@stacks/transactions'
 import { PostConditionMode, FungibleConditionCode, makeContractSTXPostCondition } from '@stacks/transactions'
-import { StacksTestnet } from '@stacks/network'
-import { UserSession, AppConfig, showConnect, openContractCall } from '@stacks/connect'
-
-// Contract configuration
-const CONTRACT_ADDRESS = 'ST1RVN5QPTET1RV9BJQX35JQWJFYG8YNHQEY5QN24' // Replace with your deployed address
-const CONTRACT_NAME = 'crowdfunding'
-const network = new StacksTestnet()
-
-// Wallet configuration
-const appConfig = new AppConfig(['store_write', 'publish_data'])
-const userSession = new UserSession({ appConfig })
+import { showConnect, openContractCall } from '@stacks/connect'
+import { type Campaign, parseCampaign } from '@/lib/clarity-parsers'
+import { CONTRACT_ADDRESS, CONTRACT_NAME, network, userSession } from '@/lib/stacks'
+import { mapInBatches } from '@/lib/fetch-utils'
 
 // TypeScript interfaces
-interface Campaign {
-  id: number
-  title: string
-  description: string
-  goal: number
-  total: number
-  deadline: number
-  owner: string
-  active: boolean
-  successful?: boolean
-  withdrawn?: boolean
-  finalized?: boolean
-}
-
 interface GlobalStats {
   totalRaised: number
   totalContributors: number
   activeCampaigns: number
   totalCampaigns: number
-}
-
-// Helper functions for parsing Clarity values
-const jNum = (cv: any) => Number(cv?.value ?? 0)
-const jStr = (cv: any) => String(cv?.value ?? "")
-const jBool = (cv: any) => Boolean(cv?.value ?? false)
-
-const parseCampaign = (json: any, id: number): Campaign => {
-  const d = json?.value?.value ?? {}
-  return {
-    id,
-    title: jStr(d.title) || `Campaign ${id}`,
-    description: jStr(d.description) || `Campaign ${id}`,
-    goal: jNum(d.goal) / 1_000_000,
-    total: jNum(d.total) / 1_000_000,
-    deadline: jNum(d.deadline),
-    owner: d.owner?.value || '',
-    active: jBool(d.active),
-    successful: jBool(d.successful),
-    withdrawn: jBool(d.withdrawn),
-    finalized: jBool(d.finalized),
-  }
 }
 
 // Present a readable deadline from either unix-seconds or block height
@@ -210,24 +167,20 @@ export default function AdminPage() {
         totalCampaigns: Number(cvToJSON(campaignCount).value)
       })
 
-      // Fetch all campaigns
+      // Fetch all campaigns in batches to respect Hiro API rate limits
       const count = Number(cvToJSON(campaignCount).value)
-      const campaignPromises = []
+      const campaignIds = Array.from({ length: count }, (_, i) => i)
 
-      for (let i = 0; i < count; i++) {
-        campaignPromises.push(
-          callReadOnlyFunction({
-            contractAddress: CONTRACT_ADDRESS,
-            contractName: CONTRACT_NAME,
-            functionName: 'get-campaign',
-            functionArgs: [uintCV(i)],
-            network,
-            senderAddress: CONTRACT_ADDRESS,
-          })
-        )
-      }
-
-      const campaignResults = await Promise.all(campaignPromises)
+      const campaignResults = await mapInBatches(campaignIds, 10, (i) =>
+        callReadOnlyFunction({
+          contractAddress: CONTRACT_ADDRESS,
+          contractName: CONTRACT_NAME,
+          functionName: 'get-campaign',
+          functionArgs: [uintCV(i)],
+          network,
+          senderAddress: CONTRACT_ADDRESS,
+        })
+      )
       const fetchedCampaigns: Campaign[] = campaignResults
         .map((result, index) => {
           try {

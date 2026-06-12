@@ -6,17 +6,8 @@ import { useState, useEffect } from "react"
 import Link from "next/link"
 import { ArrowLeft, Plus, Calendar, Target, FileText, Loader2 } from "lucide-react"
 import { uintCV, stringAsciiCV, AnchorMode } from "@stacks/transactions"
-import { StacksTestnet } from "@stacks/network"
-import { UserSession, AppConfig, showConnect, openContractCall } from "@stacks/connect"
-
-// Contract configuration
-const CONTRACT_ADDRESS = "ST1RVN5QPTET1RV9BJQX35JQWJFYG8YNHQEY5QN24" // Replace with your deployed address
-const CONTRACT_NAME = "crowdfunding"
-const network = new StacksTestnet()
-
-// Wallet configuration
-const appConfig = new AppConfig(["store_write", "publish_data"])
-const userSession = new UserSession({ appConfig })
+import { showConnect, openContractCall } from "@stacks/connect"
+import { CONTRACT_ADDRESS, CONTRACT_NAME, network, userSession } from "@/lib/stacks"
 
 // TypeScript interfaces
 interface FormData {
