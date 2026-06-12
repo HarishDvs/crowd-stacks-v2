@@ -6,8 +6,8 @@
 
 ## P0 — Bugs (correctness)
 
-- [ ] **P0-1** Fix deadline block-height calculation in `app/create/page.tsx` (~line 118): deadline uses `Math.floor(Date.now() / 1000) + (daysUntilDeadline * 144)` — a Unix timestamp, not a Stacks block height. Use the current block height already fetched from the Hiro API (lines 107-109) as the base: `currentBlockHeight + daysUntilDeadline * 144`.
-- [ ] **P0-2** Fix campaign parsing inconsistency between pages: `app/page.tsx` (lines 46-47) uses an `unwrapTuple` fallback chain while `app/admin/page.tsx` (line 62) accesses `json?.value?.value` directly, so the same campaign can render differently. Standardize on one unwrap approach (depends on P1-1 extraction).
+- [x] **P0-1** Fix deadline block-height calculation in `app/create/page.tsx` (~line 117): deadline was set to `Math.floor(Date.now() / 1000)` — the current Unix time, so every campaign was already expired on-chain at creation. Fixed: blocks until the selected date (~10 min/block) added to the fetched `currentBlockHeight`. (PR #2)
+- [x] **P0-2** Fix campaign parsing inconsistency between pages: in this repo the unwrap logic was already aligned (`json?.value?.value`), but `app/admin/page.tsx` used single-quoted `'Campaign ${id}'` fallbacks that rendered literally. Fixed with template literals matching `app/page.tsx`. (PR #2)
 
 ## P1 — Tech Debt & Security
 
