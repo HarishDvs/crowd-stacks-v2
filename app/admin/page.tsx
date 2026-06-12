@@ -24,13 +24,9 @@ import {
   AnchorMode
 } from '@stacks/transactions'
 import { PostConditionMode, FungibleConditionCode, makeContractSTXPostCondition } from '@stacks/transactions'
-import { UserSession, AppConfig, showConnect, openContractCall } from '@stacks/connect'
+import { showConnect, openContractCall } from '@stacks/connect'
 import { type Campaign, parseCampaign } from '@/lib/clarity-parsers'
-import { CONTRACT_ADDRESS, CONTRACT_NAME, network } from '@/lib/stacks'
-
-// Wallet configuration
-const appConfig = new AppConfig(['store_write', 'publish_data'])
-const userSession = new UserSession({ appConfig })
+import { CONTRACT_ADDRESS, CONTRACT_NAME, network, userSession } from '@/lib/stacks'
 
 // TypeScript interfaces
 interface GlobalStats {

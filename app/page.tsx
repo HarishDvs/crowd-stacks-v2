@@ -15,14 +15,10 @@ import {
   makeStandardSTXPostCondition,
   FungibleConditionCode,
 } from "@stacks/transactions"
-import { UserSession, AppConfig, showConnect, openContractCall } from "@stacks/connect"
+import { showConnect, openContractCall } from "@stacks/connect"
 import { Poppins } from "next/font/google"
 import { type Campaign, parseCampaign } from "@/lib/clarity-parsers"
-import { CONTRACT_ADDRESS, CONTRACT_NAME, network } from "@/lib/stacks"
-
-// Wallet configuration
-const appConfig = new AppConfig(["store_write", "publish_data"])
-const userSession = new UserSession({ appConfig })
+import { CONTRACT_ADDRESS, CONTRACT_NAME, network, userSession } from "@/lib/stacks"
 
 interface GlobalStats {
   totalRaised: number
