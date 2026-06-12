@@ -18,6 +18,7 @@ import {
 import { StacksTestnet } from "@stacks/network"
 import { UserSession, AppConfig, showConnect, openContractCall } from "@stacks/connect"
 import { Poppins } from "next/font/google"
+import { type Campaign, parseCampaign } from "@/lib/clarity-parsers"
 
 // Contract configuration - MUST MATCH create/page.tsx and admin/page.tsx
 const CONTRACT_ADDRESS = "ST1RVN5QPTET1RV9BJQX35JQWJFYG8YNHQEY5QN24" // Replace with your deployed address
@@ -27,19 +28,6 @@ const network = new StacksTestnet()
 // Wallet configuration
 const appConfig = new AppConfig(["store_write", "publish_data"])
 const userSession = new UserSession({ appConfig })
-
-// TypeScript interfaces - MUST MATCH admin/page.tsx
-interface Campaign {
-  id: number
-  title: string
-  description: string
-  goal: number
-  total: number
-  deadline: number
-  owner: string
-  active: boolean
-  blocksRemaining?: number
-}
 
 interface GlobalStats {
   totalRaised: number
@@ -51,25 +39,6 @@ interface TooltipProps {
   children: React.ReactNode
   text: string
   position?: "top" | "bottom" | "left" | "right"
-}
-
-// Helper functions for parsing Clarity values - MUST MATCH admin/page.tsx
-const jNum = (cv: any) => Number(cv?.value ?? 0)
-const jStr = (cv: any) => String(cv?.value ?? "")
-const jBool = (cv: any) => Boolean(cv?.value ?? false)
-
-const parseCampaign = (json: any, id: number): Campaign => {
-  const d = json?.value?.value ?? {}
-  return {
-    id,
-    title: jStr(d.title) || `Campaign ${id}`,
-    description: jStr(d.description) || `Campaign ${id}`,
-    goal: jNum(d.goal) / 1_000_000,
-    total: jNum(d.total) / 1_000_000,
-    deadline: jNum(d.deadline),
-    owner: d.owner?.value || "",
-    active: jBool(d.active),
-  }
 }
 
 // Countdown helpers (match admin behavior)
