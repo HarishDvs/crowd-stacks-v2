@@ -1,12 +1,19 @@
 "use client"
 
-// Shared campaign-state hook: home and admin read from one SWR cache
-// (key "campaign-data") instead of polling the chain independently.
+// Shared campaign-state hooks: home and admin read from common SWR caches
+// instead of polling the chain independently. Campaign tuples and global stats
+// live under separate keys so they can refresh on different cadences —
+// campaigns frequently (they drive the UI) and stats more slowly.
 import useSWR from "swr"
 import { callReadOnlyFunction, cvToJSON, uintCV } from "@stacks/transactions"
 import { type Campaign, parseCampaign } from "@/lib/clarity-parsers"
 import { CONTRACT_ADDRESS, CONTRACT_NAME, network } from "@/lib/stacks"
 import { mapInBatches } from "@/lib/fetch-utils"
+
+// Refresh cadences: campaigns change often, global stats lag behind and are
+// cheaper to read stale, so they poll on a slower interval.
+const CAMPAIGNS_REFRESH_MS = 30_000
+const STATS_REFRESH_MS = 90_000
 
 export interface GlobalStats {
   totalRaised: number
@@ -30,7 +37,7 @@ const readOnly = (functionName: string, functionArgs: unknown[] = []) =>
     senderAddress: CONTRACT_ADDRESS,
   })
 
-export async function fetchCampaignData(): Promise<CampaignData> {
+export async function fetchGlobalStats(): Promise<GlobalStats> {
   const [totalSTX, totalContributors, activeCampaigns, campaignCount] = await Promise.all([
     readOnly("get-total-stx"),
     readOnly("get-total-contributors"),
@@ -38,13 +45,17 @@ export async function fetchCampaignData(): Promise<CampaignData> {
     readOnly("get-campaign-count"),
   ])
 
-  const totalCampaigns = Number(cvToJSON(campaignCount).value)
-  const globalStats: GlobalStats = {
+  return {
     totalRaised: Number(cvToJSON(totalSTX).value) / 1_000_000,
     totalContributors: Number(cvToJSON(totalContributors).value),
     activeCampaigns: Number(cvToJSON(activeCampaigns).value),
-    totalCampaigns,
+    totalCampaigns: Number(cvToJSON(campaignCount).value),
   }
+}
+
+export async function fetchCampaigns(): Promise<Campaign[]> {
+  const campaignCount = await readOnly("get-campaign-count")
+  const totalCampaigns = Number(cvToJSON(campaignCount).value)
 
   // Campaign tuples, batched to respect Hiro API rate limits
   const campaignIds = Array.from({ length: totalCampaigns }, (_, i) => i)
@@ -75,7 +86,14 @@ export async function fetchCampaignData(): Promise<CampaignData> {
     }
   })
 
-  return { campaigns: withStatus, globalStats }
+  return withStatus
+}
+
+// Combined fetch (campaigns + stats) — kept for tests and any caller that wants
+// a single snapshot. The hook below fetches the two halves independently.
+export async function fetchCampaignData(): Promise<CampaignData> {
+  const [campaigns, globalStats] = await Promise.all([fetchCampaigns(), fetchGlobalStats()])
+  return { campaigns, globalStats }
 }
 
 const EMPTY_STATS: GlobalStats = {
@@ -86,15 +104,19 @@ const EMPTY_STATS: GlobalStats = {
 }
 
 export function useCampaignData() {
-  const { data, error, isLoading, mutate } = useSWR<CampaignData>("campaign-data", fetchCampaignData, {
-    refreshInterval: 30_000,
+  const campaigns = useSWR<Campaign[]>("campaigns", fetchCampaigns, {
+    refreshInterval: CAMPAIGNS_REFRESH_MS,
+  })
+  const stats = useSWR<GlobalStats>("global-stats", fetchGlobalStats, {
+    refreshInterval: STATS_REFRESH_MS,
   })
 
   return {
-    campaigns: data?.campaigns ?? [],
-    globalStats: data?.globalStats ?? EMPTY_STATS,
-    loading: isLoading,
-    error,
-    refresh: () => mutate(),
+    campaigns: campaigns.data ?? [],
+    globalStats: stats.data ?? EMPTY_STATS,
+    loading: campaigns.isLoading || stats.isLoading,
+    error: campaigns.error || stats.error,
+    // Revalidate both caches (e.g. after a contribute/withdraw write).
+    refresh: () => Promise.all([campaigns.mutate(), stats.mutate()]),
   }
 }
