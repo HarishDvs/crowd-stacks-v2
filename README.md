@@ -28,6 +28,21 @@ You'll need a few things to get started:
 npm install
 ```
 
+**Configure environment:**
+
+Copy `.env.example` to `.env.local` and adjust as needed:
+
+```bash
+cp .env.example .env.local
+```
+
+| Variable | Values | Default | Purpose |
+|----------|--------|---------|---------|
+| `NEXT_PUBLIC_STACKS_NETWORK` | `testnet` \| `mainnet` \| `devnet` | `testnet` | Which Stacks network the frontend talks to |
+| `NEXT_PUBLIC_CONTRACT_ADDRESS` | a Stacks address | current testnet deployment | Address of the deployed `crowdfunding` contract |
+
+Both are read in `lib/stacks.ts`; with no `.env.local` the app falls back to the testnet defaults.
+
 **Start the local devnet:**
 
 ```bash
