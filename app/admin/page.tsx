@@ -25,7 +25,9 @@ import { PostConditionMode, FungibleConditionCode, makeContractSTXPostCondition 
 import { openContractCall } from '@stacks/connect'
 import { CONTRACT_ADDRESS, CONTRACT_NAME, network } from '@/lib/stacks'
 import { connectWallet, loadUser } from '@/lib/wallet'
+import { waitForTransaction } from '@/lib/tx'
 import { useCampaignData } from '@/lib/use-campaign-data'
+import { useToast } from '@/components/toast'
 
 // Present a readable deadline from either unix-seconds or block height
 const formatDeadlineDisplay = (deadline: number, currentBlockHeight: number | null): string => {
@@ -57,6 +59,7 @@ export default function AdminPage() {
   const { campaigns, globalStats, loading, refresh } = useCampaignData()
   const [closingCampaign, setClosingCampaign] = useState<number | null>(null)
   const [currentBlockHeight, setCurrentBlockHeight] = useState<number | null>(null)
+  const toast = useToast()
 
   // Check wallet connection on load
   useEffect(() => {
@@ -86,41 +89,14 @@ export default function AdminPage() {
       onConnect: setUser,
       onError: (error) => {
         console.error("Wallet connection failed:", error)
-        alert("Wallet connection failed. Please try again.")
+        toast.error("Wallet connection failed. Please try again.")
       },
     })
   }
 
-  // Add this new function inside your AdminPage component
-  const waitForTransaction = async (txId: string) => {
-    const maxRetries = 15;
-    let retries = 0;
-
-    return new Promise<void>((resolve, reject) => {
-      const interval = setInterval(async () => {
-        try {
-          const response = await fetch(`https://api.testnet.hiro.so/extended/v1/tx/${txId}`);
-          const data = await response.json();
-
-          if (data.tx_status === 'success' || data.tx_status === 'failed') {
-            clearInterval(interval);
-            resolve();
-          } else if (retries >= maxRetries) {
-            clearInterval(interval);
-            reject(new Error('Transaction timed out'));
-          }
-          retries++;
-        } catch (error) {
-          clearInterval(interval);
-          reject(error);
-        }
-      }, 5000); // Check every 5 seconds
-    });
-  };
-
   const handleCloseCampaign = async (campaignId: number) => {
     if (!user) {
-      alert('Please connect your wallet first');
+      toast.error('Please connect your wallet first');
       return;
     }
 
@@ -128,7 +104,7 @@ export default function AdminPage() {
     if (!campaign) return;
 
     if (campaign.owner !== user.profile.stxAddress.testnet) {
-      alert('Only the campaign owner can finalize this campaign');
+      toast.error('Only the campaign owner can finalize this campaign');
       return;
     }
 
@@ -175,17 +151,21 @@ export default function AdminPage() {
         postConditions,
         anchorMode: AnchorMode.Any,
         onFinish: async (data) => {
-          alert(`Transaction broadcasted! Waiting for confirmation...`);
+          toast.info('Transaction broadcast — awaiting confirmation...');
           try {
             // This will wait for the transaction to be confirmed
-            await waitForTransaction(data.txId);
+            const status = await waitForTransaction(data.txId);
 
             // Now, refresh the shared cache to show the updated list
             await refresh();
-            alert(`Campaign finalized successfully!`);
+            if (status === 'success') {
+              toast.success('Campaign finalized successfully!');
+            } else {
+              toast.error('Finalize transaction failed on-chain. Please check the explorer.');
+            }
           } catch (error) {
             console.error('Transaction confirmation failed:', error);
-            alert('Transaction confirmation failed. Please check the explorer.');
+            toast.info('Transaction broadcast — could not confirm status. Check the explorer.');
           }
         },
         onCancel: () => {
@@ -195,7 +175,7 @@ export default function AdminPage() {
 
     } catch (error) {
       console.error('Failed to finalize campaign:', error);
-      alert('Failed to finalize campaign. Please try again.');
+      toast.error('Failed to finalize campaign. Please try again.');
     } finally {
       setClosingCampaign(null);
     }

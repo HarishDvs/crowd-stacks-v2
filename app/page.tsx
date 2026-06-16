@@ -18,7 +18,9 @@ import { Poppins } from "next/font/google"
 import { type Campaign } from "@/lib/clarity-parsers"
 import { CONTRACT_ADDRESS, CONTRACT_NAME, network } from "@/lib/stacks"
 import { connectWallet, disconnectWallet, loadUser } from "@/lib/wallet"
+import { waitForTransaction } from "@/lib/tx"
 import { useCampaignData } from "@/lib/use-campaign-data"
+import { useToast } from "@/components/toast"
 
 interface TooltipProps {
   children: React.ReactNode
@@ -90,6 +92,7 @@ export default function HomePage() {
   // Blockchain State — campaigns and stats come from the shared SWR cache
   const [user, setUser] = useState<any>(null)
   const { campaigns, globalStats, loading, refresh } = useCampaignData()
+  const toast = useToast()
 
   // Derived: only show active campaigns in the main app
   const visibleCampaigns: Campaign[] = campaigns.filter((c) => c.active)
@@ -150,7 +153,7 @@ export default function HomePage() {
       onConnect: setUser,
       onError: (error) => {
         console.error("Wallet connection failed:", error)
-        alert("Wallet connection failed. Please try again.")
+        toast.error("Wallet connection failed. Please try again.")
       },
     })
   }
@@ -164,17 +167,17 @@ export default function HomePage() {
   // Handle contribution - MATCHES contract function signature
   const handleContribute = async () => {
     if (!user) {
-      alert("Please connect your wallet first")
+      toast.error("Please connect your wallet first")
       return
     }
 
     if (!contributionAmount || Number.parseFloat(contributionAmount) < 1) {
-      alert("Minimum contribution is 1 STX")
+      toast.error("Minimum contribution is 1 STX")
       return
     }
 
     if (!currentCampaign.active) {
-      alert("This campaign is not active")
+      toast.error("This campaign is not active")
       return
     }
 
@@ -196,12 +199,22 @@ export default function HomePage() {
         anchorMode: AnchorMode.Any,
         postConditionMode: PostConditionMode.Deny,
         postConditions,
-        onFinish: () => {
+        onFinish: async (data) => {
+          const amount = contributionAmount
           setContributionAmount("")
-          setTimeout(() => {
-            refresh() // Revalidate the shared cache so admin sees the same totals
-            alert(`Successfully contributed ${contributionAmount} STX!`)
-          }, 2000)
+          toast.info(`Contribution of ${amount} STX submitted — awaiting confirmation...`)
+          try {
+            const status = await waitForTransaction(data.txId)
+            await refresh() // Revalidate the shared cache so admin sees the same totals
+            if (status === "success") {
+              toast.success(`Successfully contributed ${amount} STX!`)
+            } else {
+              toast.error("Contribution transaction failed on-chain.")
+            }
+          } catch (error) {
+            console.error("Could not confirm contribution:", error)
+            toast.info("Contribution broadcast — could not confirm status. Check the explorer.")
+          }
         },
         onCancel: () => {
           console.log("Transaction cancelled")
@@ -209,7 +222,7 @@ export default function HomePage() {
       })
     } catch (error) {
       console.error("Contribution failed:", error)
-      alert("Contribution failed. Please try again.")
+      toast.error("Contribution failed. Please try again.")
     } finally {
       setIsContributing(false)
     }

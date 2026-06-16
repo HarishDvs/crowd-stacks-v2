@@ -9,6 +9,8 @@ import { uintCV, stringAsciiCV, AnchorMode } from "@stacks/transactions"
 import { openContractCall } from "@stacks/connect"
 import { CONTRACT_ADDRESS, CONTRACT_NAME, network } from "@/lib/stacks"
 import { connectWallet, loadUser } from "@/lib/wallet"
+import { waitForTransaction } from "@/lib/tx"
+import { useToast } from "@/components/toast"
 
 // TypeScript interfaces
 interface FormData {
@@ -39,6 +41,7 @@ export default function CreatePage() {
   const [isCreating, setIsCreating] = useState<boolean>(false)
   const [errors, setErrors] = useState<FormErrors>({})
   const [user, setUser] = useState<any>(null)
+  const toast = useToast()
 
   useEffect(() => {
     setUser(loadUser())
@@ -52,7 +55,7 @@ export default function CreatePage() {
       onConnect: setUser,
       onError: (error) => {
         console.error("Wallet connection failed:", error)
-        alert("Wallet connection failed. Please try again.")
+        toast.error("Wallet connection failed. Please try again.")
       },
     })
   }
@@ -94,7 +97,7 @@ export default function CreatePage() {
     e.preventDefault()
 
     if (!user) {
-      alert("Please connect your wallet first")
+      toast.error("Please connect your wallet first")
       return
     }
 
@@ -133,16 +136,26 @@ export default function CreatePage() {
         ],
         anchorMode: AnchorMode.Any,
         postConditionMode: 2, // Allow
-        onFinish: (data) => {
-          console.log("Campaign creation transaction:", data)
+        onFinish: async (data) => {
+          const createdTitle = formData.title
           setFormData({ title: "", description: "", goal: "", deadline: "" })
           setErrors({})
-          alert(`Campaign "${formData.title}" created successfully! Transaction ID: ${data.txId}`)
-
-          // Redirect to home page after successful creation
-          setTimeout(() => {
-            window.location.href = "/"
-          }, 2000)
+          toast.info(`Campaign "${createdTitle}" submitted — awaiting confirmation...`)
+          try {
+            const status = await waitForTransaction(data.txId)
+            if (status === "success") {
+              toast.success(`Campaign "${createdTitle}" created successfully!`)
+              // Redirect to home page after confirmed creation
+              setTimeout(() => {
+                window.location.href = "/"
+              }, 1500)
+            } else {
+              toast.error("Campaign creation failed on-chain. Please try again.")
+            }
+          } catch (error) {
+            console.error("Could not confirm campaign creation:", error)
+            toast.info("Campaign broadcast — could not confirm status. Check the explorer.")
+          }
         },
         onCancel: () => {
           console.log("Campaign creation cancelled")
@@ -150,7 +163,7 @@ export default function CreatePage() {
       })
     } catch (error) {
       console.error("Failed to create campaign:", error)
-      alert("Failed to create campaign. Please try again.")
+      toast.error("Failed to create campaign. Please try again.")
     } finally {
       setIsCreating(false)
     }

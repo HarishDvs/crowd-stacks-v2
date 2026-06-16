@@ -1,6 +1,7 @@
 import { Inter } from 'next/font/google'
 import './globals.css'
 import { ErrorBoundary } from '@/components/error-boundary'
+import { ToastProvider } from '@/components/toast'
 
 const inter = Inter({ subsets: ['latin'] })
 
@@ -18,7 +19,9 @@ export default function RootLayout({
     <html lang="en">
       <body className={inter.className}>
         <div className="min-h-screen bg-gradient-to-br from-slate-900 via-purple-900 to-slate-900">
-          <ErrorBoundary>{children}</ErrorBoundary>
+          <ErrorBoundary>
+            <ToastProvider>{children}</ToastProvider>
+          </ErrorBoundary>
         </div>
       </body>
     </html>
