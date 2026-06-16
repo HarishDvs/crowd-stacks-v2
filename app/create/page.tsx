@@ -11,6 +11,7 @@ import { CONTRACT_ADDRESS, CONTRACT_NAME, network } from "@/lib/stacks"
 import { connectWallet, loadUser } from "@/lib/wallet"
 import { waitForTransaction } from "@/lib/tx"
 import { useToast } from "@/components/toast"
+import { useOnlineStatus } from "@/lib/use-online-status"
 
 // TypeScript interfaces
 interface FormData {
@@ -42,6 +43,7 @@ export default function CreatePage() {
   const [errors, setErrors] = useState<FormErrors>({})
   const [user, setUser] = useState<any>(null)
   const toast = useToast()
+  const online = useOnlineStatus()
 
   useEffect(() => {
     setUser(loadUser())
@@ -95,6 +97,11 @@ export default function CreatePage() {
   // Handle form submission with blockchain integration
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault()
+
+    if (!online) {
+      toast.error("You appear to be offline. Reconnect and try again.")
+      return
+    }
 
     if (!user) {
       toast.error("Please connect your wallet first")
@@ -374,7 +381,7 @@ export default function CreatePage() {
               {/* Submit Button */}
               <button
                 type="submit"
-                disabled={!formData.title || !formData.goal || isCreating || !user}
+                disabled={!formData.title || !formData.goal || isCreating || !user || !online}
                 className="w-full bg-violet-600 hover:bg-violet-700 disabled:bg-neutral-600 text-white font-semibold py-4 px-6 rounded-lg flex items-center justify-center space-x-2 transition-all duration-200 disabled:cursor-not-allowed"
               >
                 {isCreating ? <Loader2 size={20} className="animate-spin" /> : <Plus size={20} />}
@@ -383,6 +390,9 @@ export default function CreatePage() {
 
               {!user && (
                 <p className="text-center text-neutral-300 text-sm">Connect your wallet above to create a campaign</p>
+              )}
+              {user && !online && (
+                <p className="text-center text-red-400 text-sm">Offline — campaign creation is paused</p>
               )}
             </form>
           </div>

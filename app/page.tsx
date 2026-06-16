@@ -22,6 +22,7 @@ import { waitForTransaction } from "@/lib/tx"
 import { useCampaignData } from "@/lib/use-campaign-data"
 import { useToast } from "@/components/toast"
 import { CampaignCardSkeletonGrid } from "@/components/campaign-skeleton"
+import { useOnlineStatus } from "@/lib/use-online-status"
 
 interface TooltipProps {
   children: React.ReactNode
@@ -94,6 +95,7 @@ export default function HomePage() {
   const [user, setUser] = useState<any>(null)
   const { campaigns, globalStats, loading, refresh } = useCampaignData()
   const toast = useToast()
+  const online = useOnlineStatus()
 
   // Derived: only show active campaigns in the main app
   const visibleCampaigns: Campaign[] = campaigns.filter((c) => c.active)
@@ -167,6 +169,11 @@ export default function HomePage() {
 
   // Handle contribution - MATCHES contract function signature
   const handleContribute = async () => {
+    if (!online) {
+      toast.error("You appear to be offline. Reconnect and try again.")
+      return
+    }
+
     if (!user) {
       toast.error("Please connect your wallet first")
       return
@@ -430,13 +437,13 @@ export default function HomePage() {
                         min="1"
                         step="0.1"
                         className="w-full bg-neutral-800 border border-neutral-600 rounded-lg px-4 py-3 text-neutral-100 placeholder-neutral-500 focus:outline-none focus:border-violet-400 transition-colors"
-                        disabled={!user || !currentCampaign.active}
+                        disabled={!user || !currentCampaign.active || !online}
                       />
                     </div>
 
                     <button
                       onClick={handleContribute}
-                      disabled={!contributionAmount || isContributing || !currentCampaign.active || !user}
+                      disabled={!contributionAmount || isContributing || !currentCampaign.active || !user || !online}
                       className="w-full bg-violet-600 hover:bg-violet-700 disabled:bg-neutral-700 text-white font-semibold py-3 px-6 rounded-lg flex items-center justify-center space-x-2 transition-all duration-200 disabled:cursor-not-allowed"
                     >
                       <Wallet size={20} />
@@ -445,6 +452,9 @@ export default function HomePage() {
                     </button>
 
                     {!user && <p className="text-xs text-neutral-300 text-center">Connect wallet to contribute</p>}
+                    {user && !online && (
+                      <p className="text-xs text-red-400 text-center">Offline — contributions are paused</p>
+                    )}
                   </div>
                 </div>
               </div>
