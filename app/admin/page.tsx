@@ -28,6 +28,7 @@ import { connectWallet, loadUser } from '@/lib/wallet'
 import { waitForTransaction } from '@/lib/tx'
 import { useCampaignData } from '@/lib/use-campaign-data'
 import { useToast } from '@/components/toast'
+import { CampaignCardSkeletonGrid } from '@/components/campaign-skeleton'
 
 // Present a readable deadline from either unix-seconds or block height
 const formatDeadlineDisplay = (deadline: number, currentBlockHeight: number | null): string => {
@@ -230,7 +231,6 @@ export default function AdminPage() {
         <div className="text-center mb-12">
           <h1 className="text-4xl font-bold text-neutral-100 mb-4">Campaign Dashboard</h1>
           <p className="text-neutral-300 mb-6">Manage your crowdfunding campaigns</p>
-          {loading && <div className="text-violet-400">Loading campaigns...</div>}
         </div>
 
         {/* Global Stats */}
@@ -282,7 +282,9 @@ export default function AdminPage() {
             <section className="mb-12">
               <h2 className="text-3xl font-bold text-neutral-100 mb-6">Your Campaigns ({userActiveCampaigns.length})</h2>
 
-              {userCampaigns.length === 0 ? (
+              {loading && campaigns.length === 0 ? (
+                <CampaignCardSkeletonGrid count={2} />
+              ) : userCampaigns.length === 0 ? (
                 <div className="backdrop-blur-md bg-neutral-800/40 rounded-xl p-8 text-center border border-neutral-700">
                   <div className="text-neutral-400 mb-4">You haven't created any campaigns yet</div>
                   <Link

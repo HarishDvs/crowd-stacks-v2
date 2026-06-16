@@ -21,6 +21,7 @@ import { connectWallet, disconnectWallet, loadUser } from "@/lib/wallet"
 import { waitForTransaction } from "@/lib/tx"
 import { useCampaignData } from "@/lib/use-campaign-data"
 import { useToast } from "@/components/toast"
+import { CampaignCardSkeletonGrid } from "@/components/campaign-skeleton"
 
 interface TooltipProps {
   children: React.ReactNode
@@ -303,8 +304,15 @@ export default function HomePage() {
           <p className={`${poppins.className} text-xl text-neutral-300 max-w-2xl mx-auto`}>
             Fund the next generation of indie games, powered by the Stacks blockchain.
           </p>
-          {loading && <div className="mt-4 text-violet-400">Loading blockchain data...</div>}
         </section>
+
+        {/* Loading skeletons while the first campaign load is in flight */}
+        {loading && visibleCampaigns.length === 0 && (
+          <section className="mb-16">
+            <h2 className="text-3xl font-bold text-neutral-100 text-center mb-8">All Campaigns</h2>
+            <CampaignCardSkeletonGrid count={3} />
+          </section>
+        )}
 
         {/* Campaign Selector */}
         {visibleCampaigns.length > 1 && (
