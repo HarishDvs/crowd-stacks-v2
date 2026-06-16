@@ -6,8 +6,12 @@ import { useState, useEffect } from "react"
 import Link from "next/link"
 import { ArrowLeft, Plus, Calendar, Target, FileText, Loader2 } from "lucide-react"
 import { uintCV, stringAsciiCV, AnchorMode } from "@stacks/transactions"
-import { showConnect, openContractCall } from "@stacks/connect"
-import { CONTRACT_ADDRESS, CONTRACT_NAME, network, userSession } from "@/lib/stacks"
+import { openContractCall } from "@stacks/connect"
+import { CONTRACT_ADDRESS, CONTRACT_NAME, network } from "@/lib/stacks"
+import { connectWallet, loadUser } from "@/lib/wallet"
+import { waitForTransaction } from "@/lib/tx"
+import { useToast } from "@/components/toast"
+import { useOnlineStatus } from "@/lib/use-online-status"
 
 // TypeScript interfaces
 interface FormData {
@@ -19,9 +23,14 @@ interface FormData {
 
 interface FormErrors {
   title?: string
+  description?: string
   goal?: string
   deadline?: string
 }
+
+// Match the contract's string-ascii field sizes (contracts/crowdfunding.clar).
+const TITLE_MAX = 80
+const DESCRIPTION_MAX = 256
 
 export default function CreatePage() {
   const [formData, setFormData] = useState<FormData>({
@@ -33,24 +42,22 @@ export default function CreatePage() {
   const [isCreating, setIsCreating] = useState<boolean>(false)
   const [errors, setErrors] = useState<FormErrors>({})
   const [user, setUser] = useState<any>(null)
+  const toast = useToast()
+  const online = useOnlineStatus()
 
   useEffect(() => {
-    if (userSession.isUserSignedIn()) {
-      setUser(userSession.loadUserData())
-    }
+    setUser(loadUser())
   }, [])
 
   // Connect wallet
   const handleConnect = () => {
-    showConnect({
-      appDetails: {
-        name: "CrowdStacks - Crowdfunding DApp",
-        icon: window.location.origin + "/favicon.ico",
-      },
+    connectWallet({
+      appName: "CrowdStacks - Crowdfunding DApp",
       redirectTo: "/create",
-      userSession,
-      onFinish: () => {
-        window.location.reload()
+      onConnect: setUser,
+      onError: (error) => {
+        console.error("Wallet connection failed:", error)
+        toast.error("Wallet connection failed. Please try again.")
       },
     })
   }
@@ -61,6 +68,14 @@ export default function CreatePage() {
 
     if (!formData.title.trim()) {
       newErrors.title = "Campaign title is required"
+    } else if (formData.title.length > TITLE_MAX) {
+      newErrors.title = `Title must be ${TITLE_MAX} characters or fewer`
+    }
+
+    // Description is optional (the contract accepts an empty string), but it
+    // cannot exceed the contract's string-ascii 256 limit.
+    if (formData.description.length > DESCRIPTION_MAX) {
+      newErrors.description = `Description must be ${DESCRIPTION_MAX} characters or fewer`
     }
 
     if (!formData.goal || Number.parseFloat(formData.goal) < 1) {
@@ -83,8 +98,13 @@ export default function CreatePage() {
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault()
 
+    if (!online) {
+      toast.error("You appear to be offline. Reconnect and try again.")
+      return
+    }
+
     if (!user) {
-      alert("Please connect your wallet first")
+      toast.error("Please connect your wallet first")
       return
     }
 
@@ -123,16 +143,26 @@ export default function CreatePage() {
         ],
         anchorMode: AnchorMode.Any,
         postConditionMode: 2, // Allow
-        onFinish: (data) => {
-          console.log("Campaign creation transaction:", data)
+        onFinish: async (data) => {
+          const createdTitle = formData.title
           setFormData({ title: "", description: "", goal: "", deadline: "" })
           setErrors({})
-          alert(`Campaign "${formData.title}" created successfully! Transaction ID: ${data.txId}`)
-
-          // Redirect to home page after successful creation
-          setTimeout(() => {
-            window.location.href = "/"
-          }, 2000)
+          toast.info(`Campaign "${createdTitle}" submitted — awaiting confirmation...`)
+          try {
+            const status = await waitForTransaction(data.txId)
+            if (status === "success") {
+              toast.success(`Campaign "${createdTitle}" created successfully!`)
+              // Redirect to home page after confirmed creation
+              setTimeout(() => {
+                window.location.href = "/"
+              }, 1500)
+            } else {
+              toast.error("Campaign creation failed on-chain. Please try again.")
+            }
+          } catch (error) {
+            console.error("Could not confirm campaign creation:", error)
+            toast.info("Campaign broadcast — could not confirm status. Check the explorer.")
+          }
         },
         onCancel: () => {
           console.log("Campaign creation cancelled")
@@ -140,7 +170,7 @@ export default function CreatePage() {
       })
     } catch (error) {
       console.error("Failed to create campaign:", error)
-      alert("Failed to create campaign. Please try again.")
+      toast.error("Failed to create campaign. Please try again.")
     } finally {
       setIsCreating(false)
     }
@@ -216,6 +246,7 @@ export default function CreatePage() {
                   placeholder="Enter your campaign title..."
                   value={formData.title}
                   onChange={(e) => handleChange("title", e.target.value)}
+                  maxLength={TITLE_MAX}
                   className={`w-full bg-neutral-800 border rounded-lg px-4 py-3 text-neutral-100 placeholder-neutral-500 focus:outline-none transition-colors ${
                     errors.title
                       ? "border-violet-500 focus:border-violet-500"
@@ -224,7 +255,16 @@ export default function CreatePage() {
                   disabled={!user}
                   required
                 />
-                {errors.title && <p className="text-violet-400 text-sm mt-2">{errors.title}</p>}
+                <div className="flex justify-between mt-2">
+                  {errors.title ? (
+                    <p className="text-violet-400 text-sm">{errors.title}</p>
+                  ) : (
+                    <span />
+                  )}
+                  <span className="text-xs text-neutral-500">
+                    {formData.title.length}/{TITLE_MAX}
+                  </span>
+                </div>
               </div>
 
               {/* Description */}
@@ -235,9 +275,24 @@ export default function CreatePage() {
                   placeholder="Describe your project, goals, and how funds will be used..."
                   value={formData.description}
                   onChange={(e) => handleChange("description", e.target.value)}
-                  className="w-full bg-neutral-800 border border-neutral-600 rounded-lg px-4 py-3 text-neutral-100 placeholder-neutral-500 focus:outline-none focus:border-violet-400 transition-colors resize-none"
+                  maxLength={DESCRIPTION_MAX}
+                  className={`w-full bg-neutral-800 border rounded-lg px-4 py-3 text-neutral-100 placeholder-neutral-500 focus:outline-none transition-colors resize-none ${
+                    errors.description
+                      ? "border-violet-500 focus:border-violet-500"
+                      : "border-neutral-600 focus:border-violet-400"
+                  }`}
                   disabled={!user}
                 />
+                <div className="flex justify-between mt-2">
+                  {errors.description ? (
+                    <p className="text-violet-400 text-sm">{errors.description}</p>
+                  ) : (
+                    <span />
+                  )}
+                  <span className="text-xs text-neutral-500">
+                    {formData.description.length}/{DESCRIPTION_MAX}
+                  </span>
+                </div>
               </div>
 
               {/* Goal and Deadline */}
@@ -326,7 +381,7 @@ export default function CreatePage() {
               {/* Submit Button */}
               <button
                 type="submit"
-                disabled={!formData.title || !formData.goal || isCreating || !user}
+                disabled={!formData.title || !formData.goal || isCreating || !user || !online}
                 className="w-full bg-violet-600 hover:bg-violet-700 disabled:bg-neutral-600 text-white font-semibold py-4 px-6 rounded-lg flex items-center justify-center space-x-2 transition-all duration-200 disabled:cursor-not-allowed"
               >
                 {isCreating ? <Loader2 size={20} className="animate-spin" /> : <Plus size={20} />}
@@ -335,6 +390,9 @@ export default function CreatePage() {
 
               {!user && (
                 <p className="text-center text-neutral-300 text-sm">Connect your wallet above to create a campaign</p>
+              )}
+              {user && !online && (
+                <p className="text-center text-red-400 text-sm">Offline — campaign creation is paused</p>
               )}
             </form>
           </div>

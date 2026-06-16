@@ -22,9 +22,13 @@ import {
   AnchorMode
 } from '@stacks/transactions'
 import { PostConditionMode, FungibleConditionCode, makeContractSTXPostCondition } from '@stacks/transactions'
-import { showConnect, openContractCall } from '@stacks/connect'
-import { CONTRACT_ADDRESS, CONTRACT_NAME, network, userSession } from '@/lib/stacks'
+import { openContractCall } from '@stacks/connect'
+import { CONTRACT_ADDRESS, CONTRACT_NAME, network } from '@/lib/stacks'
+import { connectWallet, loadUser } from '@/lib/wallet'
+import { waitForTransaction } from '@/lib/tx'
 import { useCampaignData } from '@/lib/use-campaign-data'
+import { useToast } from '@/components/toast'
+import { CampaignCardSkeletonGrid } from '@/components/campaign-skeleton'
 
 // Present a readable deadline from either unix-seconds or block height
 const formatDeadlineDisplay = (deadline: number, currentBlockHeight: number | null): string => {
@@ -56,12 +60,11 @@ export default function AdminPage() {
   const { campaigns, globalStats, loading, refresh } = useCampaignData()
   const [closingCampaign, setClosingCampaign] = useState<number | null>(null)
   const [currentBlockHeight, setCurrentBlockHeight] = useState<number | null>(null)
+  const toast = useToast()
 
   // Check wallet connection on load
   useEffect(() => {
-    if (userSession.isUserSignedIn()) {
-      setUser(userSession.loadUserData())
-    }
+    setUser(loadUser())
   }, [])
 
   // Fetch current chain height (client-side) to estimate block-based deadlines
@@ -81,49 +84,20 @@ export default function AdminPage() {
 
   // Connect wallet
   const handleConnect = () => {
-    showConnect({
-      appDetails: {
-        name: "CrowdStacks - Admin Dashboard",
-        icon: window.location.origin + "/favicon.ico",
-      },
+    connectWallet({
+      appName: "CrowdStacks - Admin Dashboard",
       redirectTo: "/admin",
-      userSession,
-      onFinish: () => {
-        window.location.reload()
+      onConnect: setUser,
+      onError: (error) => {
+        console.error("Wallet connection failed:", error)
+        toast.error("Wallet connection failed. Please try again.")
       },
     })
   }
 
-  // Add this new function inside your AdminPage component
-  const waitForTransaction = async (txId: string) => {
-    const maxRetries = 15;
-    let retries = 0;
-
-    return new Promise<void>((resolve, reject) => {
-      const interval = setInterval(async () => {
-        try {
-          const response = await fetch(`https://api.testnet.hiro.so/extended/v1/tx/${txId}`);
-          const data = await response.json();
-
-          if (data.tx_status === 'success' || data.tx_status === 'failed') {
-            clearInterval(interval);
-            resolve();
-          } else if (retries >= maxRetries) {
-            clearInterval(interval);
-            reject(new Error('Transaction timed out'));
-          }
-          retries++;
-        } catch (error) {
-          clearInterval(interval);
-          reject(error);
-        }
-      }, 5000); // Check every 5 seconds
-    });
-  };
-
   const handleCloseCampaign = async (campaignId: number) => {
     if (!user) {
-      alert('Please connect your wallet first');
+      toast.error('Please connect your wallet first');
       return;
     }
 
@@ -131,7 +105,7 @@ export default function AdminPage() {
     if (!campaign) return;
 
     if (campaign.owner !== user.profile.stxAddress.testnet) {
-      alert('Only the campaign owner can finalize this campaign');
+      toast.error('Only the campaign owner can finalize this campaign');
       return;
     }
 
@@ -178,17 +152,21 @@ export default function AdminPage() {
         postConditions,
         anchorMode: AnchorMode.Any,
         onFinish: async (data) => {
-          alert(`Transaction broadcasted! Waiting for confirmation...`);
+          toast.info('Transaction broadcast — awaiting confirmation...');
           try {
             // This will wait for the transaction to be confirmed
-            await waitForTransaction(data.txId);
+            const status = await waitForTransaction(data.txId);
 
             // Now, refresh the shared cache to show the updated list
             await refresh();
-            alert(`Campaign finalized successfully!`);
+            if (status === 'success') {
+              toast.success('Campaign finalized successfully!');
+            } else {
+              toast.error('Finalize transaction failed on-chain. Please check the explorer.');
+            }
           } catch (error) {
             console.error('Transaction confirmation failed:', error);
-            alert('Transaction confirmation failed. Please check the explorer.');
+            toast.info('Transaction broadcast — could not confirm status. Check the explorer.');
           }
         },
         onCancel: () => {
@@ -198,7 +176,7 @@ export default function AdminPage() {
 
     } catch (error) {
       console.error('Failed to finalize campaign:', error);
-      alert('Failed to finalize campaign. Please try again.');
+      toast.error('Failed to finalize campaign. Please try again.');
     } finally {
       setClosingCampaign(null);
     }
@@ -253,7 +231,6 @@ export default function AdminPage() {
         <div className="text-center mb-12">
           <h1 className="text-4xl font-bold text-neutral-100 mb-4">Campaign Dashboard</h1>
           <p className="text-neutral-300 mb-6">Manage your crowdfunding campaigns</p>
-          {loading && <div className="text-violet-400">Loading campaigns...</div>}
         </div>
 
         {/* Global Stats */}
@@ -305,7 +282,9 @@ export default function AdminPage() {
             <section className="mb-12">
               <h2 className="text-3xl font-bold text-neutral-100 mb-6">Your Campaigns ({userActiveCampaigns.length})</h2>
 
-              {userCampaigns.length === 0 ? (
+              {loading && campaigns.length === 0 ? (
+                <CampaignCardSkeletonGrid count={2} />
+              ) : userCampaigns.length === 0 ? (
                 <div className="backdrop-blur-md bg-neutral-800/40 rounded-xl p-8 text-center border border-neutral-700">
                   <div className="text-neutral-400 mb-4">You haven't created any campaigns yet</div>
                   <Link

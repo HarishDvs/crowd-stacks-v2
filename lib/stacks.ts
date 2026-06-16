@@ -1,7 +1,7 @@
 // Stacks blockchain utilities and contract interaction helpers
-import { StacksTestnet } from '@stacks/network'; // Changed to Testnet
+import { StacksMainnet, StacksTestnet, StacksMocknet, type StacksNetwork } from '@stacks/network';
 import { AppConfig, UserSession, openContractCall } from '@stacks/connect'; // Added imports
-import { 
+import {
   callReadOnlyFunction,
   cvToJSON,
   uintCV,
@@ -10,16 +10,37 @@ import {
 } from '@stacks/transactions';
 
 // --- Wallet and Network Configuration ---
-// Use StacksTestnet() for the live testnet
-export const network = new StacksTestnet(); 
+// Network is selected from NEXT_PUBLIC_STACKS_NETWORK (testnet | mainnet | devnet);
+// defaults to testnet so existing testnet deployments keep working.
+export type StacksNetworkName = 'testnet' | 'mainnet' | 'devnet';
+
+export const NETWORK_NAME: StacksNetworkName =
+  (process.env.NEXT_PUBLIC_STACKS_NETWORK as StacksNetworkName) || 'testnet';
+
+function resolveNetwork(name: StacksNetworkName): StacksNetwork {
+  switch (name) {
+    case 'mainnet':
+      return new StacksMainnet();
+    case 'devnet':
+      // Local Clarinet/devnet exposes a mocknet-style node.
+      return new StacksMocknet();
+    case 'testnet':
+    default:
+      return new StacksTestnet();
+  }
+}
+
+export const network: StacksNetwork = resolveNetwork(NETWORK_NAME);
 
 // Standard wallet session setup
 const appConfig = new AppConfig(['store_write', 'publish_data']);
 export const userSession = new UserSession({ appConfig });
 
 // --- Contract Details ---
-// Make sure this is your DEPLOYED testnet address
-export const CONTRACT_ADDRESS = 'ST1RVN5QPTET1RV9BJQX35JQWJFYG8YNHQEY5QN24'; 
+// Deployed contract address comes from NEXT_PUBLIC_CONTRACT_ADDRESS; the default
+// is the current testnet deployment.
+export const CONTRACT_ADDRESS =
+  process.env.NEXT_PUBLIC_CONTRACT_ADDRESS || 'ST1RVN5QPTET1RV9BJQX35JQWJFYG8YNHQEY5QN24';
 export const CONTRACT_NAME = 'crowdfunding';
 
 // --- Helper Functions ---

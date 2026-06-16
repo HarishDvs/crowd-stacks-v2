@@ -13,11 +13,16 @@ import {
   makeStandardSTXPostCondition,
   FungibleConditionCode,
 } from "@stacks/transactions"
-import { showConnect, openContractCall } from "@stacks/connect"
+import { openContractCall } from "@stacks/connect"
 import { Poppins } from "next/font/google"
 import { type Campaign } from "@/lib/clarity-parsers"
-import { CONTRACT_ADDRESS, CONTRACT_NAME, network, userSession } from "@/lib/stacks"
+import { CONTRACT_ADDRESS, CONTRACT_NAME, network } from "@/lib/stacks"
+import { connectWallet, disconnectWallet, loadUser } from "@/lib/wallet"
+import { waitForTransaction } from "@/lib/tx"
 import { useCampaignData } from "@/lib/use-campaign-data"
+import { useToast } from "@/components/toast"
+import { CampaignCardSkeletonGrid } from "@/components/campaign-skeleton"
+import { useOnlineStatus } from "@/lib/use-online-status"
 
 interface TooltipProps {
   children: React.ReactNode
@@ -89,6 +94,8 @@ export default function HomePage() {
   // Blockchain State — campaigns and stats come from the shared SWR cache
   const [user, setUser] = useState<any>(null)
   const { campaigns, globalStats, loading, refresh } = useCampaignData()
+  const toast = useToast()
+  const online = useOnlineStatus()
 
   // Derived: only show active campaigns in the main app
   const visibleCampaigns: Campaign[] = campaigns.filter((c) => c.active)
@@ -129,9 +136,7 @@ export default function HomePage() {
 
   // Check wallet connection on load
   useEffect(() => {
-    if (userSession.isUserSignedIn()) {
-      setUser(userSession.loadUserData())
-    }
+    setUser(loadUser())
   }, [])
 
   // Trigger confetti when goal is reached
@@ -145,39 +150,42 @@ export default function HomePage() {
 
   // Connect wallet
   const handleConnect = () => {
-    showConnect({
-      appDetails: {
-        name: "CrowdStacks - Crowdfunding DApp",
-        icon: window.location.origin + "/favicon.ico",
-      },
+    connectWallet({
+      appName: "CrowdStacks - Crowdfunding DApp",
       redirectTo: "/",
-      userSession,
-      onFinish: () => {
-        window.location.reload()
+      onConnect: setUser,
+      onError: (error) => {
+        console.error("Wallet connection failed:", error)
+        toast.error("Wallet connection failed. Please try again.")
       },
     })
   }
 
   // Disconnect wallet
   const handleDisconnect = () => {
-    userSession.signUserOut("/")
+    disconnectWallet("/")
     setUser(null)
   }
 
   // Handle contribution - MATCHES contract function signature
   const handleContribute = async () => {
+    if (!online) {
+      toast.error("You appear to be offline. Reconnect and try again.")
+      return
+    }
+
     if (!user) {
-      alert("Please connect your wallet first")
+      toast.error("Please connect your wallet first")
       return
     }
 
     if (!contributionAmount || Number.parseFloat(contributionAmount) < 1) {
-      alert("Minimum contribution is 1 STX")
+      toast.error("Minimum contribution is 1 STX")
       return
     }
 
     if (!currentCampaign.active) {
-      alert("This campaign is not active")
+      toast.error("This campaign is not active")
       return
     }
 
@@ -199,12 +207,22 @@ export default function HomePage() {
         anchorMode: AnchorMode.Any,
         postConditionMode: PostConditionMode.Deny,
         postConditions,
-        onFinish: () => {
+        onFinish: async (data) => {
+          const amount = contributionAmount
           setContributionAmount("")
-          setTimeout(() => {
-            refresh() // Revalidate the shared cache so admin sees the same totals
-            alert(`Successfully contributed ${contributionAmount} STX!`)
-          }, 2000)
+          toast.info(`Contribution of ${amount} STX submitted — awaiting confirmation...`)
+          try {
+            const status = await waitForTransaction(data.txId)
+            await refresh() // Revalidate the shared cache so admin sees the same totals
+            if (status === "success") {
+              toast.success(`Successfully contributed ${amount} STX!`)
+            } else {
+              toast.error("Contribution transaction failed on-chain.")
+            }
+          } catch (error) {
+            console.error("Could not confirm contribution:", error)
+            toast.info("Contribution broadcast — could not confirm status. Check the explorer.")
+          }
         },
         onCancel: () => {
           console.log("Transaction cancelled")
@@ -212,7 +230,7 @@ export default function HomePage() {
       })
     } catch (error) {
       console.error("Contribution failed:", error)
-      alert("Contribution failed. Please try again.")
+      toast.error("Contribution failed. Please try again.")
     } finally {
       setIsContributing(false)
     }
@@ -293,8 +311,15 @@ export default function HomePage() {
           <p className={`${poppins.className} text-xl text-neutral-300 max-w-2xl mx-auto`}>
             Fund the next generation of indie games, powered by the Stacks blockchain.
           </p>
-          {loading && <div className="mt-4 text-violet-400">Loading blockchain data...</div>}
         </section>
+
+        {/* Loading skeletons while the first campaign load is in flight */}
+        {loading && visibleCampaigns.length === 0 && (
+          <section className="mb-16">
+            <h2 className="text-3xl font-bold text-neutral-100 text-center mb-8">All Campaigns</h2>
+            <CampaignCardSkeletonGrid count={3} />
+          </section>
+        )}
 
         {/* Campaign Selector */}
         {visibleCampaigns.length > 1 && (
@@ -412,13 +437,13 @@ export default function HomePage() {
                         min="1"
                         step="0.1"
                         className="w-full bg-neutral-800 border border-neutral-600 rounded-lg px-4 py-3 text-neutral-100 placeholder-neutral-500 focus:outline-none focus:border-violet-400 transition-colors"
-                        disabled={!user || !currentCampaign.active}
+                        disabled={!user || !currentCampaign.active || !online}
                       />
                     </div>
 
                     <button
                       onClick={handleContribute}
-                      disabled={!contributionAmount || isContributing || !currentCampaign.active || !user}
+                      disabled={!contributionAmount || isContributing || !currentCampaign.active || !user || !online}
                       className="w-full bg-violet-600 hover:bg-violet-700 disabled:bg-neutral-700 text-white font-semibold py-3 px-6 rounded-lg flex items-center justify-center space-x-2 transition-all duration-200 disabled:cursor-not-allowed"
                     >
                       <Wallet size={20} />
@@ -427,6 +452,9 @@ export default function HomePage() {
                     </button>
 
                     {!user && <p className="text-xs text-neutral-300 text-center">Connect wallet to contribute</p>}
+                    {user && !online && (
+                      <p className="text-xs text-red-400 text-center">Offline — contributions are paused</p>
+                    )}
                   </div>
                 </div>
               </div>
