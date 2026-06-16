@@ -7,8 +7,6 @@ import Link from "next/link"
 import Confetti from "react-confetti"
 import { Wallet, Target, Users, Calendar, TrendingUp, ArrowRight, Plus, BarChart3, Home, LogIn } from "lucide-react"
 import {
-  callReadOnlyFunction,
-  cvToJSON,
   uintCV,
   AnchorMode,
   PostConditionMode,
@@ -17,15 +15,9 @@ import {
 } from "@stacks/transactions"
 import { showConnect, openContractCall } from "@stacks/connect"
 import { Poppins } from "next/font/google"
-import { type Campaign, parseCampaign } from "@/lib/clarity-parsers"
+import { type Campaign } from "@/lib/clarity-parsers"
 import { CONTRACT_ADDRESS, CONTRACT_NAME, network, userSession } from "@/lib/stacks"
-import { mapInBatches } from "@/lib/fetch-utils"
-
-interface GlobalStats {
-  totalRaised: number
-  totalContributors: number
-  activeCampaigns: number
-}
+import { useCampaignData } from "@/lib/use-campaign-data"
 
 interface TooltipProps {
   children: React.ReactNode
@@ -94,15 +86,9 @@ export default function HomePage() {
   const [windowSize, setWindowSize] = useState({ width: 0, height: 0 })
   const [selectedCampaign, setSelectedCampaign] = useState<number>(0)
 
-  // Blockchain State
+  // Blockchain State — campaigns and stats come from the shared SWR cache
   const [user, setUser] = useState<any>(null)
-  const [campaigns, setCampaigns] = useState<Campaign[]>([])
-  const [globalStats, setGlobalStats] = useState<GlobalStats>({
-    totalRaised: 0,
-    totalContributors: 0,
-    activeCampaigns: 0,
-  })
-  const [loading, setLoading] = useState<boolean>(true)
+  const { campaigns, globalStats, loading, refresh } = useCampaignData()
 
   // Derived: only show active campaigns in the main app
   const visibleCampaigns: Campaign[] = campaigns.filter((c) => c.active)
@@ -146,7 +132,6 @@ export default function HomePage() {
     if (userSession.isUserSignedIn()) {
       setUser(userSession.loadUserData())
     }
-    fetchAllData()
   }, [])
 
   // Trigger confetti when goal is reached
@@ -157,12 +142,6 @@ export default function HomePage() {
       return () => clearTimeout(timer)
     }
   }, [goalReached, showConfetti, currentCampaign.total])
-
-  // Auto-refresh data every 30 seconds - SYNCS WITH create/admin PAGES
-  useEffect(() => {
-    const interval = setInterval(fetchAllData, 30000)
-    return () => clearInterval(interval)
-  }, [])
 
   // Connect wallet
   const handleConnect = () => {
@@ -183,112 +162,6 @@ export default function HomePage() {
   const handleDisconnect = () => {
     userSession.signUserOut("/")
     setUser(null)
-  }
-
-  // Fetch all blockchain data - MATCHES admin/page.tsx exactly
-  const fetchAllData = async () => {
-    try {
-      setLoading(true)
-
-      // Get global stats - SAME FUNCTIONS AS admin/page.tsx
-      const [totalSTX, totalContributors, activeCampaigns, campaignCount] = await Promise.all([
-        callReadOnlyFunction({
-          contractAddress: CONTRACT_ADDRESS,
-          contractName: CONTRACT_NAME,
-          functionName: "get-total-stx",
-          functionArgs: [],
-          network,
-          senderAddress: CONTRACT_ADDRESS,
-        }),
-        callReadOnlyFunction({
-          contractAddress: CONTRACT_ADDRESS,
-          contractName: CONTRACT_NAME,
-          functionName: "get-total-contributors",
-          functionArgs: [],
-          network,
-          senderAddress: CONTRACT_ADDRESS,
-        }),
-        callReadOnlyFunction({
-          contractAddress: CONTRACT_ADDRESS,
-          contractName: CONTRACT_NAME,
-          functionName: "get-active-campaigns",
-          functionArgs: [],
-          network,
-          senderAddress: CONTRACT_ADDRESS,
-        }),
-        callReadOnlyFunction({
-          contractAddress: CONTRACT_ADDRESS,
-          contractName: CONTRACT_NAME,
-          functionName: "get-campaign-count", // This gets updated by create/page.tsx
-          functionArgs: [],
-          network,
-          senderAddress: CONTRACT_ADDRESS,
-        }),
-      ])
-
-      // Update global stats
-      setGlobalStats({
-        totalRaised: Number(cvToJSON(totalSTX).value) / 1_000_000, // Convert from microSTX
-        totalContributors: Number(cvToJSON(totalContributors).value),
-        activeCampaigns: Number(cvToJSON(activeCampaigns).value), // Updated by admin/page.tsx close-campaign
-      })
-
-      // Fetch all campaigns in batches to respect Hiro API rate limits
-      const count = Number(cvToJSON(campaignCount).value)
-      const campaignIds = Array.from({ length: count }, (_, i) => i)
-
-      const campaignResults = await mapInBatches(campaignIds, 10, (i) =>
-        callReadOnlyFunction({
-          contractAddress: CONTRACT_ADDRESS,
-          contractName: CONTRACT_NAME,
-          functionName: "get-campaign",
-          functionArgs: [uintCV(i)],
-          network,
-          senderAddress: CONTRACT_ADDRESS,
-        }),
-      )
-      const fetchedCampaigns: Campaign[] = campaignResults
-        .map((result, index) => {
-          try {
-            const parsed = parseCampaign(cvToJSON(result), index)
-            return parsed
-          } catch (error) {
-            console.warn(`Failed to parse campaign ${index}:`, error)
-            return null
-          }
-        })
-        .filter((campaign): campaign is Campaign => campaign !== null)
-
-      // Enrich with blocks-remaining for countdowns (batched like above)
-      const statusResults = await mapInBatches(fetchedCampaigns, 10, (c) =>
-        callReadOnlyFunction({
-          contractAddress: CONTRACT_ADDRESS,
-          contractName: CONTRACT_NAME,
-          functionName: 'get-campaign-status',
-          functionArgs: [uintCV(c.id)],
-          network,
-          senderAddress: CONTRACT_ADDRESS,
-        })
-      )
-      const withStatus = fetchedCampaigns.map((c, i) => {
-        try {
-          const json: any = cvToJSON(statusResults[i])
-          const tuple = json?.value?.value ?? json?.value ?? {}
-          const node = tuple['blocks-remaining']
-          const raw = typeof node?.value !== 'undefined' ? node.value : node
-          const br = Number(raw)
-          return { ...c, blocksRemaining: Number.isFinite(br) ? br : 0 }
-        } catch {
-          return { ...c }
-        }
-      })
-
-      setCampaigns(withStatus)
-    } catch (error) {
-      console.error("Error fetching blockchain data:", error)
-    } finally {
-      setLoading(false)
-    }
   }
 
   // Handle contribution - MATCHES contract function signature
@@ -329,7 +202,7 @@ export default function HomePage() {
         onFinish: () => {
           setContributionAmount("")
           setTimeout(() => {
-            fetchAllData() // Refresh to show updated totals
+            refresh() // Revalidate the shared cache so admin sees the same totals
             alert(`Successfully contributed ${contributionAmount} STX!`)
           }, 2000)
         },
