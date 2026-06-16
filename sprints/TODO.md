@@ -24,24 +24,24 @@
 - [x] **P1-1** [Harish] Extract shared Clarity parsing helpers (`jNum`, `jStr`, `jBool`, `parseCampaign`) into `lib/clarity-parsers.ts` with a shared `Campaign` type; home and admin import from there. (PR #4)
 - [x] **P1-2** [Harish] Centralize contract config: all three pages (home included — it also redeclared in this repo) now import `CONTRACT_ADDRESS`, `CONTRACT_NAME`, `network` from `lib/stacks.ts`. (PR #4)
 - [x] **P1-3** [Harish] Remove duplicate `UserSession`/`AppConfig` instances; all pages use the shared `userSession` export from `lib/stacks.ts`. (PR #4)
-- [ ] **P1-4** [Tejash] Move network and contract address to environment variables: `NEXT_PUBLIC_STACKS_NETWORK` (`testnet|mainnet|devnet`) and `NEXT_PUBLIC_CONTRACT_ADDRESS`, initialized in `lib/stacks.ts`. Add both to `.env.example` and document in README.
-- [ ] **P1-5** [Tejash] Replace `window.location.reload()` on wallet connect (in `app/page.tsx`, `app/create/page.tsx`, `app/admin/page.tsx` handleConnect functions) with a state update (`setUser(userSession.loadUserData())`) plus an error-handling callback.
-- [ ] **P1-6** [Tejash] Add form validation limits in `app/create/page.tsx` (validateForm, lines 67-89): title max 80 chars and description max 256 chars to match the contract's `string-ascii` limits; reject empty description or document that it's allowed.
+- [x] **P1-4** [Tejash] Network and contract address now read from `NEXT_PUBLIC_STACKS_NETWORK` (`testnet|mainnet|devnet`) and `NEXT_PUBLIC_CONTRACT_ADDRESS`, resolved in `lib/stacks.ts` with testnet defaults. Added `.env.example` and documented in README. (4cc6136)
+- [x] **P1-5** [Tejash] `handleConnect` resolves via an `onConnect` state callback (`setUser(loadUserData())`) plus an `onError` handler instead of `window.location.reload()`; connect/disconnect/session logic extracted to `lib/wallet.ts`. (0c16705)
+- [x] **P1-6** [Tejash] `validateForm` in `app/create/page.tsx` rejects titles over 80 and descriptions over 256 chars (matching the contract `string-ascii` limits); inputs cap via `maxLength` + live counter. Empty description remains allowed (documented in code). (8ed7530)
 
 ## P2 — Performance & Reliability
 
 - [x] **P2-1** [Harish] Replace unbounded `Promise.all()` campaign fetching with batched fetching (10 at a time) and exponential backoff via `lib/fetch-utils.ts` (`mapInBatches`, `withBackoff`); applied to both fan-outs on home and the campaign loop on admin. (PR #5)
 - [x] **P2-2** [Harish] Shared campaign-state hook via SWR (`lib/use-campaign-data.ts`, cache key `campaign-data`): home and admin now read one cache with a single 30s refresh instead of independently polling — fixes cross-page data divergence. (PR #6)
-- [ ] **P2-3** [Tejash] Split global stats refresh onto a slower interval (60-120s) than campaign refresh (30s) in `app/page.tsx` and `app/admin/page.tsx`.
-- [ ] **P2-4** [Tejash] Add a React error boundary wrapping routes in `app/layout.tsx` with a fallback UI instead of a white screen.
-- [ ] **P2-5** [Tejash] Replace `alert()` transaction notifications (`app/page.tsx`, `app/create/page.tsx`, `app/admin/page.tsx`) with toast notifications plus transaction-status tracking (admin already has `waitForTransaction` — reuse it).
+- [x] **P2-3** [Tejash] `lib/use-campaign-data.ts` now uses two SWR keys — `campaigns` (30s) and `global-stats` (90s) — so stats poll slower than the campaign list; both pages share both caches. (a16cb49)
+- [x] **P2-4** [Tejash] Added a client `ErrorBoundary` (`components/error-boundary.tsx`) wrapping routes in `app/layout.tsx` with a recoverable fallback UI instead of a white screen. (dac6f3d)
+- [x] **P2-5** [Tejash] In-house `ToastProvider`/`useToast` (`components/toast.tsx`) replaces all `alert()` calls; shared `lib/tx.ts` `waitForTransaction` (network-aware, extracted from admin) tracks contribute/create/finalize status. (262a805)
 
 ## P3 — UX, Tests & Housekeeping
 
 - [x] **P3-1** [Harish] Add unit tests for Clarity parsing helpers — vitest added (`npm test`), 6 tests in `lib/clarity-parsers.test.ts` covering unwrapping, microSTX conversion, fallback titles, and none-response defaults. (PR #5)
-- [ ] **P3-2** [Tejash] Add tests for wallet connect/disconnect flow and session persistence.
+- [x] **P3-2** [Tejash] `lib/wallet.test.ts` (6 tests): connect via showConnect + onConnect, error routing to onError, disconnect clearing the session, and session persistence for signed-in/out states. (a30a79e)
 - [x] **P3-3** [Harish] Contract integration tests (`lib/contract-integration.test.ts`, 8 tests): create-campaign arg shapes, contribute microSTX conversion, withdraw-funds/finalize-failure close paths, and the shared-hook read flow with mocked chain responses. (PR #6)
-- [ ] **P3-4** [Tejash] Add loading skeleton states for campaign cards instead of plain "Loading blockchain data..." text.
-- [ ] **P3-5** [Tejash] Add offline/API-unavailable detection: network status indicator and disabled contribute/create buttons when offline.
-- [ ] **P3-6** [Tejash] Plan campaign archival/cleanup strategy for `contracts/crowdfunding.clar` maps (no size limits or archival today) — design note before any contract change.
+- [x] **P3-4** [Tejash] `components/campaign-skeleton.tsx` renders skeleton cards on home and admin during the first load, replacing the plain "Loading..." text and the misleading admin empty-state. (4db22ff)
+- [x] **P3-5** [Tejash] `lib/use-online-status.ts` + a global `OfflineBanner`; contribute (home) and create (create) buttons/inputs disable when offline and the handlers bail out with a toast. (dcb435f)
+- [x] **P3-6** [Tejash] Design note `planning-docs/CAMPAIGN-ARCHIVAL.md` covering unbounded-map growth, four archival options, and a recommendation. No contract change. (4b574ec)
 - [ ] **P3-7** [Harish] Dependency watch: track `@stacks/connect` v8 and Next.js 15 releases; test upgrades in an isolated branch.
