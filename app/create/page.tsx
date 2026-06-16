@@ -20,9 +20,14 @@ interface FormData {
 
 interface FormErrors {
   title?: string
+  description?: string
   goal?: string
   deadline?: string
 }
+
+// Match the contract's string-ascii field sizes (contracts/crowdfunding.clar).
+const TITLE_MAX = 80
+const DESCRIPTION_MAX = 256
 
 export default function CreatePage() {
   const [formData, setFormData] = useState<FormData>({
@@ -58,6 +63,14 @@ export default function CreatePage() {
 
     if (!formData.title.trim()) {
       newErrors.title = "Campaign title is required"
+    } else if (formData.title.length > TITLE_MAX) {
+      newErrors.title = `Title must be ${TITLE_MAX} characters or fewer`
+    }
+
+    // Description is optional (the contract accepts an empty string), but it
+    // cannot exceed the contract's string-ascii 256 limit.
+    if (formData.description.length > DESCRIPTION_MAX) {
+      newErrors.description = `Description must be ${DESCRIPTION_MAX} characters or fewer`
     }
 
     if (!formData.goal || Number.parseFloat(formData.goal) < 1) {
@@ -213,6 +226,7 @@ export default function CreatePage() {
                   placeholder="Enter your campaign title..."
                   value={formData.title}
                   onChange={(e) => handleChange("title", e.target.value)}
+                  maxLength={TITLE_MAX}
                   className={`w-full bg-neutral-800 border rounded-lg px-4 py-3 text-neutral-100 placeholder-neutral-500 focus:outline-none transition-colors ${
                     errors.title
                       ? "border-violet-500 focus:border-violet-500"
@@ -221,7 +235,16 @@ export default function CreatePage() {
                   disabled={!user}
                   required
                 />
-                {errors.title && <p className="text-violet-400 text-sm mt-2">{errors.title}</p>}
+                <div className="flex justify-between mt-2">
+                  {errors.title ? (
+                    <p className="text-violet-400 text-sm">{errors.title}</p>
+                  ) : (
+                    <span />
+                  )}
+                  <span className="text-xs text-neutral-500">
+                    {formData.title.length}/{TITLE_MAX}
+                  </span>
+                </div>
               </div>
 
               {/* Description */}
@@ -232,9 +255,24 @@ export default function CreatePage() {
                   placeholder="Describe your project, goals, and how funds will be used..."
                   value={formData.description}
                   onChange={(e) => handleChange("description", e.target.value)}
-                  className="w-full bg-neutral-800 border border-neutral-600 rounded-lg px-4 py-3 text-neutral-100 placeholder-neutral-500 focus:outline-none focus:border-violet-400 transition-colors resize-none"
+                  maxLength={DESCRIPTION_MAX}
+                  className={`w-full bg-neutral-800 border rounded-lg px-4 py-3 text-neutral-100 placeholder-neutral-500 focus:outline-none transition-colors resize-none ${
+                    errors.description
+                      ? "border-violet-500 focus:border-violet-500"
+                      : "border-neutral-600 focus:border-violet-400"
+                  }`}
                   disabled={!user}
                 />
+                <div className="flex justify-between mt-2">
+                  {errors.description ? (
+                    <p className="text-violet-400 text-sm">{errors.description}</p>
+                  ) : (
+                    <span />
+                  )}
+                  <span className="text-xs text-neutral-500">
+                    {formData.description.length}/{DESCRIPTION_MAX}
+                  </span>
+                </div>
               </div>
 
               {/* Goal and Deadline */}
