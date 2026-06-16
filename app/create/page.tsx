@@ -6,8 +6,9 @@ import { useState, useEffect } from "react"
 import Link from "next/link"
 import { ArrowLeft, Plus, Calendar, Target, FileText, Loader2 } from "lucide-react"
 import { uintCV, stringAsciiCV, AnchorMode } from "@stacks/transactions"
-import { showConnect, openContractCall } from "@stacks/connect"
-import { CONTRACT_ADDRESS, CONTRACT_NAME, network, userSession } from "@/lib/stacks"
+import { openContractCall } from "@stacks/connect"
+import { CONTRACT_ADDRESS, CONTRACT_NAME, network } from "@/lib/stacks"
+import { connectWallet, loadUser } from "@/lib/wallet"
 
 // TypeScript interfaces
 interface FormData {
@@ -35,22 +36,18 @@ export default function CreatePage() {
   const [user, setUser] = useState<any>(null)
 
   useEffect(() => {
-    if (userSession.isUserSignedIn()) {
-      setUser(userSession.loadUserData())
-    }
+    setUser(loadUser())
   }, [])
 
   // Connect wallet
   const handleConnect = () => {
-    showConnect({
-      appDetails: {
-        name: "CrowdStacks - Crowdfunding DApp",
-        icon: window.location.origin + "/favicon.ico",
-      },
+    connectWallet({
+      appName: "CrowdStacks - Crowdfunding DApp",
       redirectTo: "/create",
-      userSession,
-      onFinish: () => {
-        window.location.reload()
+      onConnect: setUser,
+      onError: (error) => {
+        console.error("Wallet connection failed:", error)
+        alert("Wallet connection failed. Please try again.")
       },
     })
   }

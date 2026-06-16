@@ -13,10 +13,11 @@ import {
   makeStandardSTXPostCondition,
   FungibleConditionCode,
 } from "@stacks/transactions"
-import { showConnect, openContractCall } from "@stacks/connect"
+import { openContractCall } from "@stacks/connect"
 import { Poppins } from "next/font/google"
 import { type Campaign } from "@/lib/clarity-parsers"
-import { CONTRACT_ADDRESS, CONTRACT_NAME, network, userSession } from "@/lib/stacks"
+import { CONTRACT_ADDRESS, CONTRACT_NAME, network } from "@/lib/stacks"
+import { connectWallet, disconnectWallet, loadUser } from "@/lib/wallet"
 import { useCampaignData } from "@/lib/use-campaign-data"
 
 interface TooltipProps {
@@ -129,9 +130,7 @@ export default function HomePage() {
 
   // Check wallet connection on load
   useEffect(() => {
-    if (userSession.isUserSignedIn()) {
-      setUser(userSession.loadUserData())
-    }
+    setUser(loadUser())
   }, [])
 
   // Trigger confetti when goal is reached
@@ -145,22 +144,20 @@ export default function HomePage() {
 
   // Connect wallet
   const handleConnect = () => {
-    showConnect({
-      appDetails: {
-        name: "CrowdStacks - Crowdfunding DApp",
-        icon: window.location.origin + "/favicon.ico",
-      },
+    connectWallet({
+      appName: "CrowdStacks - Crowdfunding DApp",
       redirectTo: "/",
-      userSession,
-      onFinish: () => {
-        window.location.reload()
+      onConnect: setUser,
+      onError: (error) => {
+        console.error("Wallet connection failed:", error)
+        alert("Wallet connection failed. Please try again.")
       },
     })
   }
 
   // Disconnect wallet
   const handleDisconnect = () => {
-    userSession.signUserOut("/")
+    disconnectWallet("/")
     setUser(null)
   }
 

@@ -22,8 +22,9 @@ import {
   AnchorMode
 } from '@stacks/transactions'
 import { PostConditionMode, FungibleConditionCode, makeContractSTXPostCondition } from '@stacks/transactions'
-import { showConnect, openContractCall } from '@stacks/connect'
-import { CONTRACT_ADDRESS, CONTRACT_NAME, network, userSession } from '@/lib/stacks'
+import { openContractCall } from '@stacks/connect'
+import { CONTRACT_ADDRESS, CONTRACT_NAME, network } from '@/lib/stacks'
+import { connectWallet, loadUser } from '@/lib/wallet'
 import { useCampaignData } from '@/lib/use-campaign-data'
 
 // Present a readable deadline from either unix-seconds or block height
@@ -59,9 +60,7 @@ export default function AdminPage() {
 
   // Check wallet connection on load
   useEffect(() => {
-    if (userSession.isUserSignedIn()) {
-      setUser(userSession.loadUserData())
-    }
+    setUser(loadUser())
   }, [])
 
   // Fetch current chain height (client-side) to estimate block-based deadlines
@@ -81,15 +80,13 @@ export default function AdminPage() {
 
   // Connect wallet
   const handleConnect = () => {
-    showConnect({
-      appDetails: {
-        name: "CrowdStacks - Admin Dashboard",
-        icon: window.location.origin + "/favicon.ico",
-      },
+    connectWallet({
+      appName: "CrowdStacks - Admin Dashboard",
       redirectTo: "/admin",
-      userSession,
-      onFinish: () => {
-        window.location.reload()
+      onConnect: setUser,
+      onError: (error) => {
+        console.error("Wallet connection failed:", error)
+        alert("Wallet connection failed. Please try again.")
       },
     })
   }
